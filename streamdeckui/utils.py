@@ -93,10 +93,7 @@ def add_text(deck, image, text, font=None, color='white'):
     if not text:
         return PILHelper.to_native_format(deck._deck, image)
 
-    # covert BytesIO.getbuffer() back into something PIL can use
-    if isinstance(image, memoryview):
-        image = io.BytesIO(image)
-        image = Image.open(image)
+    image = from_native(deck, image)
 
     if font is None:
         font = 'assets/Roboto-Regular.ttf'
@@ -115,3 +112,31 @@ def add_text(deck, image, text, font=None, color='white'):
 def solid_image(deck, color='black'):
     image = PILHelper.create_image(deck._deck, color)
     return PILHelper.to_native_format(deck._deck, image)
+
+def from_native(deck, image):
+
+    # covert BytesIO.getbuffer() back into something PIL can use
+    if not isinstance(image, memoryview):
+        return image
+
+    from .deck import Deck
+    if isinstance(deck, Deck):
+        deck = deck._deck
+
+    image = io.BytesIO(image)
+    image = Image.open(image)
+
+    # for some reason the streamdeck wants the images flipped
+    # and rotated (potentially) so check and undo the damage
+    image_format = deck.key_image_format()
+
+    if image_format['rotation']:
+        image = image.rotate(-image_format['rotation'])
+
+    if image_format['flip'][0]:
+        image = image.transpose(Image.FLIP_LEFT_RIGHT)
+
+    if image_format['flip'][1]:
+        image = image.transpose(Image.FLIP_TOP_BOTTOM)
+
+    return image
