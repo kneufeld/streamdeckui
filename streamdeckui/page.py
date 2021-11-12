@@ -12,10 +12,12 @@ from .utils import crop_image, render_key_image, add_text
 import logging
 logger = logging.getLogger(__name__)
 
-class Page(DeviceMixin):
+class Page:
 
     def __init__(self, deck, keys):
         self._deck = weakref.ref(deck) # deck ui object
+
+        self._keys = []
 
         if keys is None:
             self._keys = [
@@ -38,10 +40,10 @@ class Page(DeviceMixin):
         return self._keys
 
     def key_index(self, key):
-        # HACK during Key creation we often reference its index which calls this.
-        # since the key hasn't been added to self.keys it call_soon() but
-        # by then the key may have been deleted/swapped/etc. tl;dr catch
-        # the value error and return -1. yuck.
+        # HACK during Key.__init__ we often reference its index which calls this.
+        # since the key hasn't been added to self.keys we call_soon() but
+        # by then the key may have been deleted/swapped/etc.
+        # tl;dr catch the value error and return -1. yuck.
         try:
             return self.keys.index(key)
         except ValueError:
@@ -92,7 +94,7 @@ class NumberedPage(Page):
         ]
 
         self._keys[0] = SwitchKey(self, 'greatwave')
-        self._keys[0].add_label(Key.UP, '0')
+        self._keys[0].set_image(Key.UP, 'assets/greatwave.jpg')
 
         self._keys[1] = SwitchKey(self, 'errorpage')
         self._keys[1].add_label(Key.UP, '1')
@@ -120,5 +122,5 @@ class ErrorPage(Page):
             key.set_image(Key.UP, red_image)
 
         self._keys[0] = SwitchKey(self, 'greatwave')
-        self._keys[-1] = QuitKey(self)
         self._keys[10] = BackKey(self)
+        self._keys[14] = QuitKey(self)

@@ -41,7 +41,8 @@ class Deck:
         self._page_history = [] # track page navigation on a stack
 
         self._deck.reset()
-        self._deck.set_key_callback_async(self.cb_keypress)
+        # self._deck.set_key_callback_async(self.cb_keypress)
+        self._deck.set_key_callback(self.cb_keypress)
 
         # reset_timers turns on the screen but we don't want to do
         # that until all key images have been uploaded, otherwise
@@ -90,6 +91,10 @@ class Deck:
     def turn_on(self):
         # note that self._brightness is not changed
         self._deck.set_brightness(self._brightness)
+
+        # on first run, delayed calls (those that require key.index)
+        # might not have run yet, so give them a chance by call_soon
+        self._loop.call_soon(self.page.repaint)
 
     def turn_off(self):
         # note that self._brightness is not changed
@@ -172,6 +177,7 @@ class Deck:
             self._deck.set_key_callback(self.cb_keypress)
 
     async def wait(self):
+        self._loop.create_task(self.check_futures())
         await self._quit_future
 
     def reset_timers(self):
@@ -201,3 +207,30 @@ class Deck:
     def cb_off_timer(self):
         self.turn_off()
         self._deck.set_key_callback_async(self.cb_wakeup)
+
+    async def check_futures(self):
+        """
+        check that the futures scheduled from the streamdeck worker thread haven't
+        thrown an exception
+        """
+        # logger.debug("check_futures: %s", self._futures)
+        remove = []
+
+        for fut in self._futures:
+            if not fut.done():
+                continue
+
+            try:
+                fut.result() # raises exception if applicable
+            except asyncio.CancelledError:
+                pass
+            except Exception as e:
+                logger.exception(e)
+            finally:
+                remove.append(fut)
+
+        for fut in remove:
+            self._futures.remove(fut)
+
+        loop = self._loop
+        loop.call_later(3, loop.create_task, self.check_futures())

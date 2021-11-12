@@ -87,24 +87,27 @@ class Key:
         if show:
             self.show_image(state)
 
-    def set_image(self, state, image):
-        """
-        image should be a str or a cropped deck image
-        """
-        image = render_key_image(self.deck, image)
-        self._images[state] = image
-
-    def show_image(self, state):
-        with self.deck:
-            image = self._images[state]
-            self.device.set_key_image(self.index, image)
-
     def crop_image(self, image):
         """
         image has already been processed by resize_image()
         return "our" section of the image
         """
         return crop_image(self.device, image, self.deck.key_spacing, self.index)
+
+    def set_image(self, state, image):
+        """
+        store the image but do not show it, use show_image for that
+        """
+        image = render_key_image(self.deck, image)
+        self._images[state] = image
+
+    def show_image(self, state):
+        if self.index < 0:
+            return
+
+        with self.deck:
+            image = self._images[state]
+            self.device.set_key_image(self.index, image)
 
     async def cb_keypress(self, pressed):
         """
@@ -130,14 +133,22 @@ class NumberKey(Key):
         self.deck._loop.call_soon(self._add_label)
 
     def _add_label(self):
-        if self.index < 0:
+        index = self.index
+
+        if index < 0:
             return
 
-        self.add_label(Key.UP, str(self.index), True)
+        self.add_label(Key.UP, str(index), False)
 
 
-class QuitKey(QuitKeyMixin, Key):
-    pass
+class QuitKey(Key):
+    def __init__(self, page, **kw):
+        super().__init__(page)
+        self.set_image(Key.UP, 'assets/exit.png')
+
+    async def key_up(self, *args, **kw):
+        logger.info("you pushed the exit key")
+        self.deck._quit_future.set_result(None)
 
 
 class UrlKey(Key):
