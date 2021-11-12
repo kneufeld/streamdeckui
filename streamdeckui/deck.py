@@ -34,12 +34,6 @@ class Deck:
         # a different callback function, could that be a composable
         # object?
 
-        # THINK key.index is also a bit annoying, it could be derived
-        # from position in page.keys list. This would break future
-        # sub page functionality. YAGNI?
-
-        # TODO Key is annoying
-
         self._pages = {}
         self._page_history = [] # track page navigation on a stack
 

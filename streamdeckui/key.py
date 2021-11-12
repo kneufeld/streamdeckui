@@ -17,9 +17,8 @@ class Key(DeviceMixin):
     UP = 0
     DOWN = 1
 
-    def __init__(self, deck, index):
-        self._deck = weakref.ref(deck) # deck ui object
-        self._index = index
+    def __init__(self, page):
+        self._page = weakref.ref(page)
         self._images = {}
 
         # default image when key is pressed
@@ -28,12 +27,32 @@ class Key(DeviceMixin):
         self.set_image(Key.DOWN, 'assets/pressed.png')
 
     def __str__(self):
-        return f"Key<{self._index}>"
+        return f"Key<{self.index}>"
 
-    def add_label(self, state, text):
+    @property
+    def page(self):
+        return self._page()
+
+    @property
+    def deck(self):
+        return self.page.deck
+
+    @property
+    def device(self):
+        return self.page.deck._deck
+
+    @property
+    def index(self):
+        return self.page.key_index(self)
+
+    def add_label(self, state, text, show=False):
+        logger.debug("adding label: %s", text)
         image = self._images[state]
         image = add_text(self.deck, image, text)
         self.set_image(state, image)
+
+        if show:
+            self.show_image(state)
 
     def set_image(self, state, image):
         """
@@ -45,14 +64,14 @@ class Key(DeviceMixin):
     def show_image(self, state):
         with self.deck:
             image = self._images[state]
-            self.device.set_key_image(self._index, image)
+            self.device.set_key_image(self.index, image)
 
     def crop_image(self, image):
         """
         image has already been processed by resize_image()
         return "our" section of the image
         """
-        return crop_image(self.device, image, self.deck.key_spacing, self._index)
+        return crop_image(self.device, image, self.deck.key_spacing, self.index)
 
     async def cb_keypress(self, pressed):
         """
@@ -71,10 +90,17 @@ class NumberKey(Key):
     any key exits
     """
 
-    def __init__(self, deck, index):
-        super().__init__(deck, index)
+    def __init__(self, page):
+        super().__init__(page)
 
-        self.add_label(Key.UP, str(index))
+        # can't call self.index until after it's been added to page
+        self.deck._loop.call_soon(self._add_label)
+
+    def _add_label(self):
+        if self.index < 0:
+            return
+
+        self.add_label(Key.UP, str(self.index), True)
 
 
 class QuitKey(QuitKeyMixin, Key):
@@ -83,8 +109,8 @@ class QuitKey(QuitKeyMixin, Key):
 
 class UrlKey(Key):
 
-    def __init__(self, deck, index, url, **kw):
-        super().__init__(deck, index)
+    def __init__(self, page, url, **kw):
+        super().__init__(page)
         self._url = url
 
     async def cb_keypress(self, pressed):
@@ -121,12 +147,12 @@ class BackKey(Key):
 
 class SwitchKey(Key):
 
-    def __init__(self, deck, index, page, **kw):
-        super().__init__(deck, index)
-        self._page = page
+    def __init__(self, page, to_page, **kw):
+        super().__init__(page)
+        self._to_page = to_page
 
     async def cb_keypress(self, pressed):
         if not pressed:
             return
 
-        self.deck.change_page(self._page)
+        self.deck.change_page(self._to_page)

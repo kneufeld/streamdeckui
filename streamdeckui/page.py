@@ -20,15 +20,33 @@ class Page(DeviceMixin):
 
         if keys is None:
             self._keys = [
-                Key(self.deck, i)
+                Key(self)
                 for i in range(self.device.key_count())
             ]
         else:
             self._keys = keys
 
     @property
+    def deck(self):
+        return self._deck()
+
+    @property
+    def device(self):
+        return self.deck._deck
+
+    @property
     def keys(self):
         return self._keys
+
+    def key_index(self, key):
+        # HACK during Key creation we often reference its index which calls this.
+        # since the key hasn't been added to self.keys it call_soon() but
+        # by then the key may have been deleted/swapped/etc. tl;dr catch
+        # the value error and return -1. yuck.
+        try:
+            return self.keys.index(key)
+        except ValueError:
+            return -1
 
     def repaint(self):
         for key in self.keys:
@@ -51,14 +69,13 @@ class GreatWavePage(Page):
     def __init__(self, deck, keys):
         super().__init__(deck, keys)
 
-        self._keys[-1] = QuitKey(self.deck, len(self._keys) - 1)
+        self._keys[-1] = QuitKey(self)
+        # 'https://www2.burgundywall.com/beast/'
         self._keys[-2] = UrlKey(
-            self.deck, len(self._keys) - 2,
-            # 'https://www2.burgundywall.com/beast/'
-            'http://localhost:8080/'
+            self, "http://localhost:8080/",
         )
-        self._keys[0] = SwitchKey(self.deck, 0, 'numbers')
-        self._keys[10] = BackKey(self.deck, 10)
+        self._keys[0] = SwitchKey(self, 'numbers')
+        self._keys[10] = BackKey(self)
 
         self.background('assets/greatwave.jpg')
 
@@ -71,22 +88,21 @@ class NumberedPage(Page):
         super().__init__(deck, keys)
 
         self._keys = [
-            NumberKey(self.deck, i)
+            NumberKey(self)
             for i in range(self.device.key_count())
         ]
 
-        self._keys[0] = SwitchKey(self.deck, 0, 'greatwave')
+        self._keys[0] = SwitchKey(self, 'greatwave')
         self._keys[0].add_label(Key.UP, '0')
 
-        self._keys[1] = SwitchKey(self.deck, 1, 'errorpage')
+        self._keys[1] = SwitchKey(self, 'errorpage')
         self._keys[1].add_label(Key.UP, '1')
 
-        self._keys[10] = BackKey(self.deck, 10)
-        self._keys[10].add_label(Key.UP, str(10))
+        self._keys[10] = BackKey(self)
+        self._keys[10].add_label(Key.UP, '10')
 
-        key = QuitKey(self.deck, self._keys[-1]._index)
-        key.add_label(Key.UP, str(key._index))
-        self._keys[-1] = key
+        self._keys[-1] = QuitKey(self)
+        self._keys[-1].add_label(Key.UP, '14')
 
 
 class ErrorPage(Page):
@@ -104,6 +120,6 @@ class ErrorPage(Page):
             key = self._keys[i]
             key.set_image(Key.UP, red_image)
 
-        self._keys[0] = SwitchKey(self.deck, 0, 'greatwave')
-        self._keys[-1] = QuitKey(self.deck, self._keys[-1]._index)
-        self._keys[10] = BackKey(self.deck, 10)
+        self._keys[0] = SwitchKey(self, 'greatwave')
+        self._keys[-1] = QuitKey(self)
+        self._keys[10] = BackKey(self)
