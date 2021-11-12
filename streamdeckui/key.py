@@ -65,7 +65,7 @@ class Key(DeviceMixin):
             self.show_image(state)
 
 
-class NumberKey(QuitKeyMixin, Key):
+class NumberKey(Key):
     """
     dev page, show key index as text
     any key exits
@@ -108,6 +108,15 @@ class UrlKey(Key):
         # https://docs.aiohttp.org/en/stable/client_reference.html
         async with aiohttp.ClientSession() as client:
             return await client.get(url)
+
+
+class BackKey(Key):
+
+    async def cb_keypress(self, pressed):
+        if not pressed:
+            return
+
+        self.deck.prev_page()
 
 
 class SwitchKey(Key):

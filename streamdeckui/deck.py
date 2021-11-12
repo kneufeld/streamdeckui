@@ -25,8 +25,23 @@ class Deck:
         self._brightness = .4
         self._clear = clear
 
+        # THINK convert all button presses/callbacks to signals
+        # everything is very tighly coupled, could make integration with
+        # external events much harder...
+
+        # THINK TODO make a key "copy" function, currently it's tedious
+        # to "change" a button type. Most of the time we just want
+        # a different callback function, could that be a composable
+        # object?
+
+        # THINK key.index is also a bit annoying, it could be derived
+        # from position in page.keys list. This would break future
+        # sub page functionality. YAGNI?
+
+        # TODO Key is annoying
+
         self._pages = {}
-        self._page = None
+        self._page_history = [] # track page navigation on a stack
 
         self._deck.reset()
         self._deck.set_key_callback_async(self.cb_keypress)
@@ -88,16 +103,29 @@ class Deck:
         """
         active page
         """
-        return self._pages[self._page]
+        curr_page = self._page_history[-1]
+        return self._pages[curr_page]
 
     def add_page(self, name, page):
-        """
-        change active page
-        """
+        logger.debug("adding page: %s: %s", name, page)
         self._pages[name] = page
 
     def change_page(self, name):
-        self._page = name
+        logger.debug("change to page: %s", name)
+        self._page_history.append(name)
+        self.page.repaint()
+        return self.page
+
+    def prev_page(self):
+        """
+        go to previous page, pop item off page history
+        """
+        if len(self._page_history) <= 1:
+            return None
+
+        self._page_history.pop()
+        logger.debug("goto prev page: %s", self._page_history[-1])
+
         self.page.repaint()
         return self.page
 

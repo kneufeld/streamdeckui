@@ -112,6 +112,6 @@ def add_text(deck, image, text, font=None, color='white'):
 
     return PILHelper.to_native_format(deck._deck, image)
 
-def black_image(deck):
-    image = PILHelper.create_image(deck._deck, 'black')
+def black_image(deck, color='black'):
+    image = PILHelper.create_image(deck._deck, color)
     return PILHelper.to_native_format(deck._deck, image)

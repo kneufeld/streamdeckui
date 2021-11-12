@@ -17,7 +17,14 @@ class Page(DeviceMixin):
 
     def __init__(self, deck, keys):
         self._deck = weakref.ref(deck) # deck ui object
-        self._keys = keys
+
+        if keys is None:
+            self._keys = [
+                Key(self.deck, i)
+                for i in range(self.device.key_count())
+            ]
+        else:
+            self._keys = keys
 
     @property
     def keys(self):
@@ -37,21 +44,21 @@ class Page(DeviceMixin):
 
         for key in self.keys:
             kimage = key.crop_image(deck_image)
-            key.set_image(KeyState.UP, kimage)
+            key.set_image(Key.UP, kimage)
 
 
 class GreatWavePage(Page):
     def __init__(self, deck, keys):
         super().__init__(deck, keys)
 
-        self._keys = [Key(self.deck, i) for i in range(self.device.key_count())]
         self._keys[-1] = QuitKey(self.deck, len(self._keys) - 1)
         self._keys[-2] = UrlKey(
             self.deck, len(self._keys) - 2,
             # 'https://www2.burgundywall.com/beast/'
             'http://localhost:8080/'
         )
-        self.keys[0] = SwitchKey(self.deck, 0, 'numbers')
+        self._keys[0] = SwitchKey(self.deck, 0, 'numbers')
+        self._keys[10] = BackKey(self.deck, 10)
 
         self.background('assets/greatwave.jpg')
 
@@ -69,7 +76,17 @@ class NumberedPage(Page):
         ]
 
         self._keys[0] = SwitchKey(self.deck, 0, 'greatwave')
-        self._keys[0].add_label(KeyState.UP, '0')
+        self._keys[0].add_label(Key.UP, '0')
+
+        self._keys[1] = SwitchKey(self.deck, 1, 'errorpage')
+        self._keys[1].add_label(Key.UP, '1')
+
+        self._keys[10] = BackKey(self.deck, 10)
+        self._keys[10].add_label(Key.UP, str(10))
+
+        key = QuitKey(self.deck, self._keys[-1]._index)
+        key.add_label(Key.UP, str(key._index))
+        self._keys[-1] = key
 
 
 class ErrorPage(Page):
@@ -80,4 +97,13 @@ class ErrorPage(Page):
     def __init__(self, deck, keys):
         super().__init__(deck, keys)
 
+        x = [1, 3, 7, 11, 13]
+        red_image = black_image(self.deck, 'red')
 
+        for i in x:
+            key = self._keys[i]
+            key.set_image(Key.UP, red_image)
+
+        self._keys[0] = SwitchKey(self.deck, 0, 'greatwave')
+        self._keys[-1] = QuitKey(self.deck, self._keys[-1]._index)
+        self._keys[10] = BackKey(self.deck, 10)
