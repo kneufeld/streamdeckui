@@ -1,7 +1,7 @@
 import asyncio
 from collections import defaultdict
 
-from .key import Key, KeyState
+from .key import Key
 from .utils import resize_image
 from .reify import reify
 
@@ -111,8 +111,8 @@ class Deck:
 
         for key in self.keys:
             kimage = key.crop_image(deck_image)
-            key.set_image(KeyState.UP, kimage)
-            key.show_image(KeyState.UP)
+            key.set_image(Key.UP, kimage)
+            key.show_image(Key.UP)
 
     @property
     def keys(self):

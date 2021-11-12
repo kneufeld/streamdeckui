@@ -1,11 +1,13 @@
 import asyncio
 import weakref
 
+from StreamDeck.ImageHelpers import PILHelper
+
 from .reify import reify
-from .utils import resize_image
+from .utils import resize_image, black_image
 from .mixins import DeviceMixin
-from .key import Key, KeyState
-from .key import QuitKey, NumberKey, UrlKey, SwitchKey
+from .key import Key
+from .key import QuitKey, NumberKey, UrlKey, SwitchKey, BackKey
 from .utils import crop_image, render_key_image, add_text
 
 import logging
@@ -23,7 +25,7 @@ class Page(DeviceMixin):
 
     def repaint(self):
         for key in self.keys:
-            key.show_image(KeyState.UP)
+            key.show_image(Key.UP)
 
     def background(self, image):
         """

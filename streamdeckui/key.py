@@ -13,14 +13,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-from enum import IntEnum
-class KeyState(IntEnum):
+class Key(DeviceMixin):
     UP = 0
     DOWN = 1
-    DEFAULT = 2
 
-
-class Key(DeviceMixin):
     def __init__(self, deck, index):
         self._deck = weakref.ref(deck) # deck ui object
         self._index = index
@@ -28,8 +24,8 @@ class Key(DeviceMixin):
 
         # default image when key is pressed
 
-        self.set_image(KeyState.UP, black_image(self.deck))
-        self.set_image(KeyState.DOWN, 'assets/pressed.png')
+        self.set_image(Key.UP, black_image(self.deck))
+        self.set_image(Key.DOWN, 'assets/pressed.png')
 
     def __str__(self):
         return f"Key<{self._index}>"
@@ -64,7 +60,7 @@ class Key(DeviceMixin):
         """
         logger.debug(f"{self}: {pressed}")
 
-        state = KeyState.DOWN if pressed else KeyState.UP
+        state = Key.DOWN if pressed else Key.UP
         if state in self._images:
             self.show_image(state)
 
@@ -78,10 +74,7 @@ class NumberKey(QuitKeyMixin, Key):
     def __init__(self, deck, index):
         super().__init__(deck, index)
 
-        image = render_key_image(self.deck, None)
-        image = add_text(self.deck, image, str(self._index), None)
-        self.set_image(KeyState.UP, image)
-        self.show_image(KeyState.UP)
+        self.add_label(Key.UP, str(index))
 
 
 class QuitKey(QuitKeyMixin, Key):
@@ -98,8 +91,8 @@ class UrlKey(Key):
         if not pressed:
             return
 
-        self.set_image(KeyState.DOWN, 'assets/safari-icon.png')
-        self.show_image(KeyState.DOWN)
+        self.set_image(Key.DOWN, 'assets/safari-icon.png')
+        self.show_image(Key.DOWN)
 
         self.set_image('error', 'assets/error.png')
 
@@ -107,7 +100,7 @@ class UrlKey(Key):
         logger.info(f"GET: {self._url}: {resp.status}")
 
         if 200 >= resp.status <= 299:
-            self.show_image(KeyState.UP)
+            self.show_image(Key.UP)
         else:
             self.show_image('error')
 
