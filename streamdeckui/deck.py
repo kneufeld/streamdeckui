@@ -1,4 +1,5 @@
 import asyncio
+from collections import defaultdict
 
 from .key import Key, KeyState
 from .utils import resize_image
@@ -9,25 +10,32 @@ logger = logging.getLogger(__name__)
 
 class Deck:
     key_spacing = (36, 36)
+    dim_timer = 10
+    off_timer = 10 # set after dim_timer
 
     def __init__(self, deck, keys=None, clear=True, loop=None):
         self._loop = loop or asyncio.get_event_loop()
+        self._dim_timer = None
+        self._off_timer = None
+
         self._quit_future = asyncio.Future(loop=loop)
+        self._quit_future.add_done_callback(self.release)
 
         self._deck = deck
         self._brightness = .4
         self._clear = clear
 
-        if keys is None:
-            self._keys = [Key(self, i) for i in range(self._deck.key_count())]
-        else:
-            self._keys = keys
+        self._pages = {}
+        self._page = None
 
         self._deck.reset()
-
         self._deck.set_key_callback_async(self.cb_keypress)
-        # callback = functools.partial(key_change_callback, quit_future)
-        # deck.set_key_callback_async(callback, quit_future.get_loop())
+
+        # reset_timers turns on the screen but we don't want to do
+        # that until all key images have been uploaded, otherwise
+        # we see a flash of the default deck icon. This gets called
+        # as soon as we wait on _quit_future
+        self._loop.call_soon(self.reset_timers)
 
     @reify
     def serial_number(self):
@@ -36,10 +44,11 @@ class Deck:
     def __str__(self):
         return self.serial_number
 
-    def release(self):
+    def release(self, *args):
         if self._clear:
-            self.turn_off()
-            self._deck.reset()
+            with self._deck:
+                self.turn_off()
+                self._deck.reset()
 
         with self._deck:
             self._deck.close()
@@ -74,6 +83,24 @@ class Deck:
         # note that self._brightness is not changed
         self._deck.set_brightness(0)
 
+    @property
+    def page(self):
+        """
+        active page
+        """
+        return self._pages[self._page]
+
+    def add_page(self, name, page):
+        """
+        change active page
+        """
+        self._pages[name] = page
+
+    def change_page(self, name):
+        self._page = name
+        self.page.repaint()
+        return self.page
+
     def background(self, image):
         """
         load and resize a source image so that it will fill the given deck
@@ -82,14 +109,14 @@ class Deck:
 
         logger.debug(f"created deck image size of {deck_image.width}x{deck_image.height}")
 
-        for key in self:
+        for key in self.keys:
             kimage = key.crop_image(deck_image)
             key.set_image(KeyState.UP, kimage)
             key.show_image(KeyState.UP)
 
     @property
     def keys(self):
-        return self._keys
+        return self.page.keys
 
     def __iter__(self):
         """
@@ -98,7 +125,42 @@ class Deck:
         return iter(self.keys)
 
     async def cb_keypress(self, _, key, state):
-        await self._keys[key].cb_keypress(state)
+        self.reset_timers()
+        await self.keys[key].cb_keypress(state)
+
+    async def cb_wakeup(self, _, key, state):
+        # only fire on keyup otherwise this is called twice
+        if state is False:
+            self.reset_timers()
+            self._deck.set_key_callback_async(self.cb_keypress)
 
     async def wait(self):
         await self._quit_future
+
+    def reset_timers(self):
+        """
+        on each keypress the timers are reset
+        when the dim timer fires the display is dimmed but keys work as expected
+        when the dim timer fires it sets the off timer
+
+        when the off timer fires it turns off the display and changes out
+        the keypress call back to only turn back on the display and not
+        fire the actual keypress event
+        """
+        self.turn_on()
+
+        if self._dim_timer:
+            self._dim_timer.cancel()
+
+        if self._off_timer:
+            self._off_timer.cancel()
+
+        self._dim_timer = self._loop.call_later(Deck.dim_timer, self.cb_dim_timer)
+
+    def cb_dim_timer(self):
+        self._deck.set_brightness(self.brightness / 2)
+        self._off_timer = self._loop.call_later(Deck.off_timer, self.cb_off_timer)
+
+    def cb_off_timer(self):
+        self.turn_off()
+        self._deck.set_key_callback_async(self.cb_wakeup)

@@ -1,3 +1,5 @@
+import io
+
 from PIL import Image, ImageOps, ImageDraw, ImageFont
 from StreamDeck.ImageHelpers import PILHelper
 
@@ -8,6 +10,11 @@ def resize_image(deck, key_spacing, image):
 
     image: whatever Pillow.Image.open() can handle
     """
+    from .deck import Deck
+
+    if isinstance(deck, Deck):
+        deck = deck._deck
+
     # TODO handle subset of deck keys
     key_rows, key_cols = deck.key_layout()
     key_width, key_height = deck.key_image_format()['size']
@@ -31,7 +38,7 @@ def resize_image(deck, key_spacing, image):
     # Resize the image to suit the StreamDeck's full image size. We use the
     # helper function in Pillow's ImageOps module so that the image's aspect
     # ratio is preserved.
-    image = Image.open(image).convert("RGBA")
+    image = Image.open(image).convert("RGB")
     image = ImageOps.fit(image, full_deck_image_size, Image.LANCZOS)
     return image
 
@@ -66,18 +73,45 @@ def crop_image(deck, image, key_spacing, key):
 
 # Generates a custom tile with run-time generated text and custom image via the
 # PIL module.
-def render_key_image(deck, icon_filename, font_filename, label_text):
+def render_key_image(deck, image):
     # Resize the source image asset to best-fit the dimensions of a single key,
     # leaving a margin at the bottom so that we can draw the key title
     # afterwards.
-    icon = Image.open(icon_filename)
-    image = PILHelper.create_scaled_image(deck, icon, margins=[0, 0, 20, 0])
 
-    if label_text:
-        # Load a custom TrueType font and use it to overlay the key index, draw key
-        # label onto the image a few pixels from the bottom of the key.
-        draw = ImageDraw.Draw(image)
-        font = ImageFont.truetype(font_filename, 14)
-        draw.text((image.width / 2, image.height - 5), text=label_text, font=font, anchor="ms", fill="white")
+    if image is None:
+        return black_image(deck)
 
-    return PILHelper.to_native_format(deck, image)
+    if isinstance(image, memoryview):
+        return image
+
+    image = Image.open(image)
+    image = PILHelper.create_scaled_image(deck._deck, image, margins=[5, ] * 4)
+    return PILHelper.to_native_format(deck._deck, image)
+
+def add_text(deck, image, text, font=None, color='white'):
+
+    if not text:
+        return PILHelper.to_native_format(deck._deck, image)
+
+    # covert BytesIO.getbuffer() back into something PIL can use
+    if isinstance(image, memoryview):
+        image = io.BytesIO(image)
+        image = Image.open(image)
+
+    if font is None:
+        font = 'assets/Roboto-Regular.ttf'
+
+    font = ImageFont.truetype(font, 14)
+
+    draw = ImageDraw.Draw(image)
+    draw.text(
+        (image.width / 2, image.height - 5),
+        text=text, font=font,
+        anchor="ms", fill=color
+    )
+
+    return PILHelper.to_native_format(deck._deck, image)
+
+def black_image(deck):
+    image = PILHelper.create_image(deck._deck, 'black')
+    return PILHelper.to_native_format(deck._deck, image)
