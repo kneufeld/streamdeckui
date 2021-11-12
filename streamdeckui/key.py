@@ -4,6 +4,7 @@ import weakref
 from StreamDeck.ImageHelpers import PILHelper
 from PIL import Image, ImageOps, ImageDraw, ImageFont
 import aiohttp
+import aiohttp.web
 
 from .reify import reify
 from .utils import crop_image, render_key_image, add_text, black_image
@@ -122,7 +123,9 @@ class UrlKey(Key):
 
         self.set_image('error', 'assets/error.png')
 
+        logger.debug("GET: %s", self._url)
         resp = await self.fetch(self._url)
+
         logger.info(f"GET: {self._url}: {resp.status}")
 
         if 200 >= resp.status <= 299:
@@ -132,8 +135,13 @@ class UrlKey(Key):
 
     async def fetch(self, url):
         # https://docs.aiohttp.org/en/stable/client_reference.html
-        async with aiohttp.ClientSession() as client:
-            return await client.get(url)
+        timeout = aiohttp.ClientTimeout(total=5)
+        async with aiohttp.ClientSession(timeout=timeout) as client:
+            try:
+                return await client.get(url)
+            except Exception as e:
+                logger.error(e)
+                return aiohttp.web.Response(status=499)
 
 
 class BackKey(Key):
