@@ -99,11 +99,14 @@ def add_text(deck, image, text, font=None, color='white'):
         font = 'assets/Roboto-Regular.ttf'
 
     font = ImageFont.truetype(font, 14)
+    pos = (
+        image.width / 2,
+        image.height - 5 - (15 * text.count('\n'))
+    )
 
     draw = ImageDraw.Draw(image)
     draw.text(
-        (image.width / 2, image.height - 5),
-        text=text, font=font,
+        pos, text=text, font=font,
         anchor="ms", fill=color
     )
 

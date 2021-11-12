@@ -1,5 +1,4 @@
 import asyncio
-from collections import defaultdict
 
 import blinker
 
@@ -116,7 +115,6 @@ class Deck:
         logger.debug("change to page: %s", name)
         self._page_history.append(name)
         self.page.repaint()
-        return self.page
 
     def prev_page(self):
         """
@@ -154,7 +152,8 @@ class Deck:
         """
         return iter(self.keys)
 
-    async def cb_keypress_async(self, _, key, pressed):
+    async def cb_keypress_async(self, device, key, pressed):
+        # NOTE now we're in the main thread
         self.reset_timers()
         key = self.keys[key]
 
@@ -176,7 +175,7 @@ class Deck:
             self.reset_timers()
             self._deck.set_key_callback(self.cb_keypress)
 
-    async def wait(self):
+    async def block_until_quit(self):
         self._loop.create_task(self.check_futures())
         await self._quit_future
 
