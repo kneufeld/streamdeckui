@@ -49,7 +49,7 @@ class Page(DeviceMixin):
 
     def repaint(self):
         for key in self.keys:
-            key.show_image(Key.UP)
+            key.show_image(key.state)
 
     def background(self, image):
         """

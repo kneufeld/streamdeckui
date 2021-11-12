@@ -1,6 +1,8 @@
 import asyncio
 from collections import defaultdict
 
+import blinker
+
 from .key import Key
 from .utils import resize_image
 from .reify import reify
@@ -25,9 +27,10 @@ class Deck:
         self._brightness = .4
         self._clear = clear
 
-        # THINK convert all button presses/callbacks to signals
-        # everything is very tighly coupled, could make integration with
-        # external events much harder...
+        self._futures = []
+
+        self.key_up = blinker.signal('key_up')
+        self.key_down = blinker.signal('key_down')
 
         # THINK TODO make a key "copy" function, currently it's tedious
         # to "change" a button type. Most of the time we just want
@@ -146,15 +149,27 @@ class Deck:
         """
         return iter(self.keys)
 
-    async def cb_keypress(self, _, key, state):
+    async def cb_keypress_async(self, _, key, pressed):
         self.reset_timers()
-        await self.keys[key].cb_keypress(state)
+        key = self.keys[key]
+
+        if pressed:
+            self.key_down.send_async(key)
+        else:
+            self.key_up.send_async(key)
+
+    def cb_keypress(self, device, key, state):
+        # NOTE we're in the streamdeck worker thread, not main
+        fut = asyncio.run_coroutine_threadsafe(
+            self.cb_keypress_async(device, key, state), self._loop
+        )
+        self._futures.append(fut)
 
     async def cb_wakeup(self, _, key, state):
         # only fire on keyup otherwise this is called twice
         if state is False:
             self.reset_timers()
-            self._deck.set_key_callback_async(self.cb_keypress)
+            self._deck.set_key_callback(self.cb_keypress)
 
     async def wait(self):
         await self._quit_future

@@ -7,27 +7,39 @@ import aiohttp
 import aiohttp.web
 
 from .reify import reify
-from .utils import crop_image, render_key_image, add_text, black_image
-from .mixins import DeviceMixin, QuitKeyMixin
+from .utils import crop_image, render_key_image, add_text, solid_image
+from .mixins import QuitKeyMixin
 
 import logging
 logger = logging.getLogger(__name__)
 
 
-class Key(DeviceMixin):
+class Key:
     UP = 0
     DOWN = 1
 
     def __init__(self, page):
         self._page = weakref.ref(page)
         self._images = {}
+        self._state = Key.UP
 
         # default image when key is pressed
         self.set_image(Key.UP, solid_image(self.deck))
         self.set_image(Key.DOWN, 'assets/pressed.png')
 
+        self.connect(True, True)
+
     def __str__(self):
         return f"Key<{self.index}>"
+
+    @property
+    def state(self):
+        return self._state
+
+    @state.setter
+    def state(self, value):
+        self._state = value
+        self.show_image(value)
 
     @property
     def page(self):
@@ -43,10 +55,31 @@ class Key(DeviceMixin):
 
     @property
     def index(self):
+        # NOTE weird stuff happens if you try to reify this
         return self.page.key_index(self)
 
+    def connect(self, up, down):
+        """
+        connect to keypress signals
+        """
+        if up:
+            self.deck.key_up.connect(self.key_up, sender=self)
+        else:
+            self.deck.key_up.disconnect(self.key_up, sender=self)
+
+        if down:
+            self.deck.key_down.connect(self.key_down, sender=self)
+        else:
+            self.deck.key_down.disconnect(self.key_down, sender=self)
+
+    async def key_up(self, *args, **kw):
+        self.state = Key.UP
+
+    async def key_down(self, *args, **kw):
+        self.state = Key.DOWN
+
     def add_label(self, state, text, show=False):
-        logger.debug("adding label: %s", text)
+        # logger.debug("adding label: %s", text)
         image = self._images[state]
         image = add_text(self.deck, image, text)
         self.set_image(state, image)
@@ -112,27 +145,22 @@ class UrlKey(Key):
     def __init__(self, page, url, **kw):
         super().__init__(page)
         self._url = url
-
-    async def cb_keypress(self, pressed):
-        if not pressed:
-            return
-
-        self.set_image(Key.DOWN, 'assets/safari-icon.png')
-        self.show_image(Key.DOWN)
-
+        self.set_image('fetch', 'assets/safari-icon.png')
         self.set_image('error', 'assets/error.png')
 
-        logger.debug("GET: %s", self._url)
+    async def key_up(self, *args, **kw):
         resp = await self.fetch(self._url)
-
         logger.info(f"GET: {self._url}: {resp.status}")
 
         if 200 >= resp.status <= 299:
-            self.show_image(Key.UP)
+            self.state = Key.UP
         else:
-            self.show_image('error')
+            self.state = 'error'
 
     async def fetch(self, url):
+        logger.debug("GETing: %s", self._url)
+        self.state = 'fetch'
+
         # https://docs.aiohttp.org/en/stable/client_reference.html
         timeout = aiohttp.ClientTimeout(total=5)
         async with aiohttp.ClientSession(timeout=timeout) as client:
@@ -145,10 +173,12 @@ class UrlKey(Key):
 
 class BackKey(Key):
 
-    async def cb_keypress(self, pressed):
-        if not pressed:
-            return
+    def __init__(self, page, **kw):
+        super().__init__(page)
+        self.set_image(Key.UP, 'assets/back.png')
 
+    async def key_up(self, *args, **kw):
+        self.state = Key.UP
         self.deck.prev_page()
 
 
@@ -158,8 +188,6 @@ class SwitchKey(Key):
         super().__init__(page)
         self._to_page = to_page
 
-    async def cb_keypress(self, pressed):
-        if not pressed:
-            return
-
+    async def key_up(self, *args, **kw):
+        self.state = Key.UP
         self.deck.change_page(self._to_page)
