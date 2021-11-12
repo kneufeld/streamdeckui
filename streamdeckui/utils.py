@@ -79,7 +79,7 @@ def render_key_image(deck, image):
     # afterwards.
 
     if image is None:
-        return black_image(deck)
+        return solid_image(deck)
 
     if isinstance(image, memoryview):
         return image
@@ -112,6 +112,6 @@ def add_text(deck, image, text, font=None, color='white'):
 
     return PILHelper.to_native_format(deck._deck, image)
 
-def black_image(deck, color='black'):
+def solid_image(deck, color='black'):
     image = PILHelper.create_image(deck._deck, color)
     return PILHelper.to_native_format(deck._deck, image)

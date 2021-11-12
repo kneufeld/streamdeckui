@@ -4,8 +4,7 @@ import weakref
 from StreamDeck.ImageHelpers import PILHelper
 
 from .reify import reify
-from .utils import resize_image, black_image
-from .mixins import DeviceMixin
+from .utils import resize_image, solid_image
 from .key import Key
 from .key import QuitKey, NumberKey, UrlKey, SwitchKey, BackKey
 from .utils import crop_image, render_key_image, add_text
@@ -114,7 +113,7 @@ class ErrorPage(Page):
         super().__init__(deck, keys)
 
         x = [1, 3, 7, 11, 13]
-        red_image = black_image(self.deck, 'red')
+        red_image = solid_image(self.deck, 'red')
 
         for i in x:
             key = self._keys[i]

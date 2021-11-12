@@ -23,8 +23,7 @@ class Key(DeviceMixin):
         self._images = {}
 
         # default image when key is pressed
-
-        self.set_image(Key.UP, black_image(self.deck))
+        self.set_image(Key.UP, solid_image(self.deck))
         self.set_image(Key.DOWN, 'assets/pressed.png')
 
     def __str__(self):
