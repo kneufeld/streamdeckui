@@ -29,19 +29,25 @@ def pseudo_import(pkg_name):
 module = pseudo_import(pkg_name)
 
 setup(
-    name=pkg_name,
-    packages=[pkg_name],
+    name = pkg_name,
+    packages = [pkg_name],
 
-    install_requires=[
+    # I think pep deprecated dependency_links
+    # dependency_links = []
+
+    install_requires = [
         'streamdeck',
+        'pillow',
+        'blinker-async',
         # https://github.com/gomymove/blinker has code examples for async
         # jek/blinker is the official version of blinker and
         # the latest version has async support but not in pypi yet
-        'blinker @ git+https://github.com/jek/blinker.git@b5e9f0629200d2b2f62e13e595b802948bb4fefb#egg=blinker',
-        'pillow',
+        # 'blinker @ git+https://github.com/jek/blinker.git@b5e9f0629200d2b2f62e13e595b802948bb4fefb#egg=blinker',
     ],
 
     extras_require = {},
+
+    include_package_data = True,
 
     # metadata for upload to PyPI
     description      = "gui framework for an elgato stream deck",
