@@ -1,6 +1,8 @@
 import asyncio
 import weakref
+import pathlib
 
+from .utils import ASSET_PATH
 from .utils import crop_image, render_key_image, add_text, solid_image
 
 import logging
@@ -16,7 +18,7 @@ class Key:
         self._state = Key.UP
 
         up_image = kw.get('up_image', solid_image(self.deck))
-        down_image = kw.get('down_image', 'assets/pressed.png')
+        down_image = kw.get('down_image', ASSET_PATH / 'pressed.png')
 
         self.set_image(Key.UP, up_image)
         self.set_image(Key.DOWN, down_image)
@@ -100,6 +102,9 @@ class Key:
         """
         store the image but do not show it, use show_image for that
         """
+        if isinstance(image, pathlib.PurePath):
+            image = str(image)
+
         image = render_key_image(self.deck, image)
         self._images[state] = image
 

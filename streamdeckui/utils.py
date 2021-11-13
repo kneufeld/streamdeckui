@@ -1,7 +1,10 @@
 import io
+import pathlib
 
 from PIL import Image, ImageOps, ImageDraw, ImageFont
 from StreamDeck.ImageHelpers import PILHelper
+
+ASSET_PATH = pathlib.Path(__file__).parent / 'assets'
 
 def resize_image(deck, key_spacing, image):
     """
@@ -96,7 +99,7 @@ def add_text(deck, image, text, font=None, color='white'):
     image = from_native(deck, image)
 
     if font is None:
-        font = 'assets/Roboto-Regular.ttf'
+        font = str(ASSET_PATH / 'Roboto-Regular.ttf')
 
     font = ImageFont.truetype(font, 14)
     pos = (
