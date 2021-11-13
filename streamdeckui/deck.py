@@ -18,14 +18,15 @@ class Timers:
     the Deck class
     """
 
-    dim_time = 3
-    off_time = 3 # set after dim_timer fires
+    dim_time = 30
+    off_time = 60 # set after dim_timer fires
 
-    def __init__(self, deck, loop):
+    def __init__(self, deck, loop, **kw):
         self._deck = weakref.ref(deck)
         self._loop = loop
 
-        self.deck.key_down.connect(self.cb_key_down)
+        self.dim_time = kw.get('dim_time', Timers.dim_time)
+        self.off_time = kw.get('off_time', Timers.off_time)
 
         self._dim_timer = None
         self._off_timer = None
@@ -50,7 +51,7 @@ class Timers:
 
     def cb_dim_timer(self):
         self.device.set_brightness(self.deck.brightness / 2)
-        self._off_timer = self._loop.call_later(Timers.off_time, self.cb_off_timer)
+        self._off_timer = self._loop.call_later(self.off_time, self.cb_off_timer)
 
     def cb_off_timer(self):
         self.deck.turn_off()
@@ -82,13 +83,13 @@ class Timers:
         if self._off_timer:
             self._off_timer.cancel()
 
-        self._dim_timer = self._loop.call_later(Timers.dim_time, self.cb_dim_timer)
+        self._dim_timer = self._loop.call_later(self.dim_time, self.cb_dim_timer)
 
 
 class Deck:
     key_spacing = (36, 36)
 
-    def __init__(self, deck, keys=None, clear=True, loop=None):
+    def __init__(self, deck, keys=None, clear=True, loop=None, **kw):
         self._loop = loop or asyncio.get_event_loop()
 
         self._quit_future = asyncio.Future(loop=loop)
@@ -109,7 +110,7 @@ class Deck:
         self._deck.reset()
         self._deck.set_key_callback(self.cb_keypress)
 
-        self._timers = Timers(self, loop)
+        self._timers = Timers(self, loop, **kw)
 
     @reify
     def serial_number(self):
