@@ -31,11 +31,9 @@ class Timers:
         self._dim_timer = None
         self._off_timer = None
 
-        # reset_timers turns on the screen but we don't want to do
-        # that until all key images have been uploaded, otherwise
-        # we see a flash of the default deck icon. This gets called
-        # as soon as we wait on _quit_future
-        self._loop.call_soon(self.reset_timers)
+        self.deck.key_down.connect(self.cb_key_down)
+
+        self.reset_timers()
 
     @property
     def deck(self):
@@ -46,7 +44,7 @@ class Timers:
         return self.deck._deck
 
     def cb_key_down(self, key):
-        self.deck.turn_on()
+        self.deck.turn_on()         # restore potentially dimmed screen
         self.reset_timers()
 
     def cb_dim_timer(self):
@@ -57,10 +55,18 @@ class Timers:
         self.deck.turn_off()
         self.device.set_key_callback_async(self.cb_wakeup)
 
-    async def cb_wakeup(self, device, key, state):
-        # only fire on keyup otherwise this is called twice
-        if state is False:
+    async def cb_wakeup(self, device, key, pressed):
+        """
+        user pushed a key after display was off, turn the deck
+        back on and restore normal callbacks
+        """
+        # only restore callbaks on keyup otherwise the keyup event will
+        # get caught in the standard callbacks which isn't what you want
+        if pressed:
+            # turn on during keydown
             self.deck.turn_on()
+        else:
+            # restore callbacks on keyup
             self.reset_timers()
             self.device.set_key_callback(self.deck.cb_keypress)
 
@@ -75,7 +81,8 @@ class Timers:
         fire the actual keypress event
         """
         # NOTE it's tempting to call turn_on() here but there's a race
-        # condition at startup and no pages have been created yet
+        # condition at startup where no pages have been created yet so you
+        # get a flash of the default streamdeck icon
 
         if self._dim_timer:
             self._dim_timer.cancel()
@@ -163,7 +170,6 @@ class Deck:
 
     def turn_on(self):
         # note that self._brightness is not changed
-
         with self._deck:
             self._deck.set_brightness(self._brightness)
 
