@@ -11,8 +11,7 @@ easier.
 `streamdeckui` is easy enough, `pip install streamdeckui`.
 
 However `streamdeck` is a bit trickier, read how at
-[ReadTheDocs](https://python-elgato-streamdeck.readthedocs.io/en/stable/
-pages/installation.html).
+[ReadTheDocs](https://python-elgato-streamdeck.readthedocs.io/en/stable/pages/installation.html).
 
 ## Example
 
