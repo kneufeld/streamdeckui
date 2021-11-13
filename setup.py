@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
 
+# this is the description at https://pypi.org/project/streamdeckui/
+"""
+gui framework for an elgato stream deck
+"""
+
 import os
 from setuptools import setup
 
@@ -50,7 +55,7 @@ setup(
     include_package_data = True,
 
     # metadata for upload to PyPI
-    description      = "gui framework for an elgato stream deck",
+    description      = __doc__,
     long_description = __doc__,
     version          = module.__version__,
     author           = module.__author__,
