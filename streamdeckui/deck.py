@@ -1,4 +1,5 @@
 import asyncio
+import weakref
 
 import blinker
 
@@ -9,18 +10,89 @@ from .reify import reify
 import logging
 logger = logging.getLogger(__name__)
 
-class Deck:
-    key_spacing = (36, 36)
-    dim_timer = 10
-    off_timer = 10 # set after dim_timer
 
-    def __init__(self, deck, keys=None, clear=True, loop=None):
-        self._loop = loop or asyncio.get_event_loop()
+class Timers:
+    """
+    this class holds all the timers related to screen brightness and
+    any other timers required. Moved into its own class to simplify
+    the Deck class
+    """
+
+    dim_time = 3
+    off_time = 3 # set after dim_timer fires
+
+    def __init__(self, deck, loop):
+        self._deck = weakref.ref(deck)
+        self._loop = loop
+
+        self.deck.key_down.connect(self.cb_key_down)
+
         self._dim_timer = None
         self._off_timer = None
 
+        # reset_timers turns on the screen but we don't want to do
+        # that until all key images have been uploaded, otherwise
+        # we see a flash of the default deck icon. This gets called
+        # as soon as we wait on _quit_future
+        self._loop.call_soon(self.reset_timers)
+
+    @property
+    def deck(self):
+        return self._deck()
+
+    @property
+    def device(self):
+        return self.deck._deck
+
+    def cb_key_down(self, key):
+        self.deck.turn_on()
+        self.reset_timers()
+
+    def cb_dim_timer(self):
+        self.device.set_brightness(self.deck.brightness / 2)
+        self._off_timer = self._loop.call_later(Timers.off_time, self.cb_off_timer)
+
+    def cb_off_timer(self):
+        self.deck.turn_off()
+        self.device.set_key_callback_async(self.cb_wakeup)
+
+    async def cb_wakeup(self, device, key, state):
+        # only fire on keyup otherwise this is called twice
+        if state is False:
+            self.deck.turn_on()
+            self.reset_timers()
+            self.device.set_key_callback(self.deck.cb_keypress)
+
+    def reset_timers(self):
+        """
+        on each keypress the timers are reset
+        when the dim timer fires the display is dimmed but keys work as expected
+        when the dim timer fires it sets the off timer
+
+        when the off timer fires it turns off the display and changes out
+        the keypress call back to only turn back on the display and not
+        fire the actual keypress event
+        """
+        # NOTE it's tempting to call turn_on() here but there's a race
+        # condition at startup and no pages have been created yet
+
+        if self._dim_timer:
+            self._dim_timer.cancel()
+
+        if self._off_timer:
+            self._off_timer.cancel()
+
+        self._dim_timer = self._loop.call_later(Timers.dim_time, self.cb_dim_timer)
+
+
+class Deck:
+    key_spacing = (36, 36)
+
+    def __init__(self, deck, keys=None, clear=True, loop=None):
+        self._loop = loop or asyncio.get_event_loop()
+
         self._quit_future = asyncio.Future(loop=loop)
-        self._quit_future.add_done_callback(self.release)
+        # self._quit_future.add_done_callback(self.release)
 
         self._deck = deck
         self._brightness = .4
@@ -31,23 +103,13 @@ class Deck:
         self.key_up = blinker.signal('key_up')
         self.key_down = blinker.signal('key_down')
 
-        # THINK TODO make a key "copy" function, currently it's tedious
-        # to "change" a button type. Most of the time we just want
-        # a different callback function, could that be a composable
-        # object?
-
         self._pages = {}
         self._page_history = [] # track page navigation on a stack
 
         self._deck.reset()
-        # self._deck.set_key_callback_async(self.cb_keypress)
         self._deck.set_key_callback(self.cb_keypress)
 
-        # reset_timers turns on the screen but we don't want to do
-        # that until all key images have been uploaded, otherwise
-        # we see a flash of the default deck icon. This gets called
-        # as soon as we wait on _quit_future
-        self._loop.call_soon(self.reset_timers)
+        self._timers = Timers(self, loop)
 
     @reify
     def serial_number(self):
@@ -57,6 +119,14 @@ class Deck:
         return self.serial_number
 
     def release(self, *args):
+        """
+        call at least once on exiting, sometimes called twice
+        depending on ctrl-c vs more graceful exit. Hence set
+        _deck to None
+        """
+        if self._deck is None:
+            return
+
         if self._clear:
             with self._deck:
                 self.turn_off()
@@ -64,6 +134,8 @@ class Deck:
 
         with self._deck:
             self._deck.close()
+
+        self._deck = None
 
     def __enter__(self):
         """
@@ -84,20 +156,20 @@ class Deck:
 
     @brightness.setter
     def brightness(self, value):
-        self._brightness = value
-        self._deck.set_brightness(value)
+        with self._deck:
+            self._brightness = value
+            self._deck.set_brightness(value)
 
     def turn_on(self):
         # note that self._brightness is not changed
-        self._deck.set_brightness(self._brightness)
 
-        # on first run, delayed calls (those that require key.index)
-        # might not have run yet, so give them a chance by call_soon
-        self._loop.call_soon(self.page.repaint)
+        with self._deck:
+            self._deck.set_brightness(self._brightness)
 
     def turn_off(self):
         # note that self._brightness is not changed
-        self._deck.set_brightness(0)
+        with self._deck:
+            self._deck.set_brightness(0)
 
     @property
     def page(self):
@@ -129,33 +201,9 @@ class Deck:
         self.page.repaint()
         return self.page
 
-    def background(self, image):
-        """
-        load and resize a source image so that it will fill the given deck
-        """
-        deck_image = resize_image(self._deck, Deck.key_spacing, image)
-
-        logger.debug(f"created deck image size of {deck_image.width}x{deck_image.height}")
-
-        for key in self.keys:
-            kimage = key.crop_image(deck_image)
-            key.set_image(Key.UP, kimage)
-            key.show_image(Key.UP)
-
-    @property
-    def keys(self):
-        return self.page.keys
-
-    def __iter__(self):
-        """
-        for key in deck: pass
-        """
-        return iter(self.keys)
-
     async def cb_keypress_async(self, device, key, pressed):
         # NOTE now we're in the main thread
-        self.reset_timers()
-        key = self.keys[key]
+        key = self.page.keys[key]
 
         if pressed:
             self.key_down.send_async(key)
@@ -169,48 +217,22 @@ class Deck:
         )
         self._futures.append(fut)
 
-    async def cb_wakeup(self, _, key, state):
-        # only fire on keyup otherwise this is called twice
-        if state is False:
-            self.reset_timers()
-            self._deck.set_key_callback(self.cb_keypress)
-
     async def block_until_quit(self):
+        """
+        await on this method to "run forever" the program
+        """
         self._loop.create_task(self.check_futures())
         await self._quit_future
 
-    def reset_timers(self):
-        """
-        on each keypress the timers are reset
-        when the dim timer fires the display is dimmed but keys work as expected
-        when the dim timer fires it sets the off timer
-
-        when the off timer fires it turns off the display and changes out
-        the keypress call back to only turn back on the display and not
-        fire the actual keypress event
-        """
-        self.turn_on()
-
-        if self._dim_timer:
-            self._dim_timer.cancel()
-
-        if self._off_timer:
-            self._off_timer.cancel()
-
-        self._dim_timer = self._loop.call_later(Deck.dim_timer, self.cb_dim_timer)
-
-    def cb_dim_timer(self):
-        self._deck.set_brightness(self.brightness / 2)
-        self._off_timer = self._loop.call_later(Deck.off_timer, self.cb_off_timer)
-
-    def cb_off_timer(self):
-        self.turn_off()
-        self._deck.set_key_callback_async(self.cb_wakeup)
-
     async def check_futures(self):
         """
-        check that the futures scheduled from the streamdeck worker thread haven't
-        thrown an exception
+        check every few seconds that the futures scheduled from the
+        streamdeck worker thread haven't thrown an exception
+
+        this isn't "required" to do but any problems in a key callback
+        (basically anything we're trying to accomplish) just disappear
+        into the void and makes debugging virtually impossible. Or log
+        a stacktrace as required.
         """
         # logger.debug("check_futures: %s", self._futures)
         remove = []
