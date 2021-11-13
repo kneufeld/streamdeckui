@@ -10,7 +10,6 @@ class Page:
 
     def __init__(self, deck, keys):
         self._deck = weakref.ref(deck) # deck ui object
-
         self._keys = []
 
         if keys is None:
@@ -61,5 +60,3 @@ class Page:
         for key in self.keys:
             kimage = key.crop_image(deck_image)
             key.set_image(Key.UP, kimage)
-
-

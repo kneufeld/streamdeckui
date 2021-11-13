@@ -62,19 +62,19 @@ class Key:
         connect to keypress signals
         """
         if up:
-            self.deck.key_up.connect(self.key_up, sender=self)
+            self.deck.key_up.connect(self.cb_key_up, sender=self)
         else:
-            self.deck.key_up.disconnect(self.key_up, sender=self)
+            self.deck.key_up.disconnect(self.cb_key_up, sender=self)
 
         if down:
-            self.deck.key_down.connect(self.key_down, sender=self)
+            self.deck.key_down.connect(self.cb_key_down, sender=self)
         else:
-            self.deck.key_down.disconnect(self.key_down, sender=self)
+            self.deck.key_down.disconnect(self.cb_key_down, sender=self)
 
-    async def key_up(self, *args, **kw):
+    async def cb_key_up(self, *args, **kw):
         self.state = Key.UP
 
-    async def key_down(self, *args, **kw):
+    async def cb_key_down(self, *args, **kw):
         self.state = Key.DOWN
 
     def add_label(self, state, text, show=False):
@@ -110,13 +110,3 @@ class Key:
         with self.deck:
             image = self._images[state]
             self.device.set_key_image(self.index, image)
-
-    async def cb_keypress(self, pressed):
-        """
-        pressed is True when key is pressed, hence False when released
-        """
-        logger.debug(f"{self}: {pressed}")
-
-        state = Key.DOWN if pressed else Key.UP
-        if state in self._images:
-            self.show_image(state)
