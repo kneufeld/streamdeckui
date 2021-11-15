@@ -151,6 +151,7 @@ class Deck:
         check_futures.start()
 
         logger.debug("waiting for quit signal...")
+
         await self._quit_future
         await check_futures.stop()
 

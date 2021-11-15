@@ -85,5 +85,3 @@ class Timers:
             self._off_timer.cancel()
 
         self._dim_timer = self._loop.call_later(self.dim_time, self.cb_dim_timer)
-
-

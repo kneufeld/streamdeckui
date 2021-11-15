@@ -18,9 +18,9 @@ def is_async(func):
 
 class Periodic:
     def __init__(self, loop, time, func, *func_args, **func_kwargs):
-        self.time       = time
-        self.func       = (func, func_args, func_kwargs)
-        self.loop       = loop or asyncio.get_event_loop()
+        self.time = time
+        self.func = (func, func_args, func_kwargs)
+        self.loop = loop or asyncio.get_event_loop()
 
         self.is_started = False
         self._task      = None
@@ -28,7 +28,7 @@ class Periodic:
     def start(self):
         if not self.is_started:
             self.is_started = True
-            # task to call func periodically:
+            # task to call func periodically
             self._task = self.loop.create_task(self._run())
 
     async def stop(self):
@@ -41,11 +41,12 @@ class Periodic:
 
     async def _run(self):
         func, args, kwargs = self.func
+        _is_async = is_async(func)
 
         while True:
-            if is_async(func):
+            await asyncio.sleep(self.time)
+
+            if _is_async:
                 await func(*args, **kwargs)
             else:
                 func(*args, **kwargs)
-
-            await asyncio.sleep(self.time)
