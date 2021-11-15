@@ -1,10 +1,7 @@
 import asyncio
-import weakref
 
 import blinker
 
-from .key import Key
-from .utils import resize_image
 from .reify import reify
 from .periodic import Periodic
 from .timers import Timers
@@ -133,14 +130,15 @@ class Deck:
         key = self.page.keys[key]
 
         if pressed:
-            self.key_down.send_async(key)
+            return self.key_down.send_async(key)
         else:
-            self.key_up.send_async(key)
+            return self.key_up.send_async(key)
 
     def cb_keypress(self, device, key, state):
         # NOTE we're in the streamdeck worker thread, not main
         fut = asyncio.run_coroutine_threadsafe(
-            self.cb_keypress_async(device, key, state), self._loop
+            self.cb_keypress_async(device, key, state),
+            self._loop
         )
         self._futures.append(fut)
 
@@ -174,7 +172,14 @@ class Deck:
                 continue
 
             try:
-                fut.result() # raises exception if applicable
+                results = fut.result() # raises exception if applicable
+
+                # not totally confident I know what's going on here...
+                # I think blink-async:send_async() returns the receiver
+                # callback and the results of the callback, which in our case
+                # is the nested coroutine. I think... It seems to work though.
+                for receiver_cb, task in results:
+                    await task
             except asyncio.CancelledError:
                 pass
             except Exception as e:
