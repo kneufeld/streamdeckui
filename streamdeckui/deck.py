@@ -9,7 +9,6 @@ from .timers import Timers
 import logging
 logger = logging.getLogger(__name__)
 
-
 class Deck:
     key_spacing = (36, 36)
 
@@ -36,6 +35,9 @@ class Deck:
 
         self._timers = Timers(self, loop, **kw)
 
+        self._check_futures = Periodic(self._loop, 3, self.cb_check_futures)
+        self._check_futures.start()
+
     @reify
     def serial_number(self):
         return self._deck.get_serial_number()
@@ -43,23 +45,32 @@ class Deck:
     def __str__(self):
         return self.serial_number
 
-    def release(self, *args):
+    async def run(self):
         """
-        call at least once on exiting, sometimes called twice
-        depending on ctrl-c vs more graceful exit. Hence set
-        _deck to None
+        await on this method to "run forever" the program
+        """
+        logger.debug("waiting for quit signal...")
+
+        await self._quit_future
+
+    async def release(self, *args):
+        """
+        call at least once on exiting
+
+        this is sometimes called twice depending on ctrl-c vs more
+        graceful exit. Hence set _deck to None
         """
         if self._deck is None:
             return
 
-        if self._clear:
-            with self._deck:
+        with self._deck:
+            if self._clear:
                 self.turn_off()
                 self._deck.reset()
 
-        with self._deck:
             self._deck.close()
 
+        await self._check_futures.stop()
         self._deck = None
 
     def __enter__(self):
@@ -70,8 +81,7 @@ class Deck:
 
     def __exit__(self, type, value, traceback):
         """
-        Exit handler for the StreamDeck, releasing the exclusive update lock on
-        the deck.
+        release lock on self._deck
         """
         self._deck.update_lock.release()
 
@@ -127,7 +137,9 @@ class Deck:
 
     async def cb_keypress_async(self, device, key, pressed):
         # NOTE now we're in the main thread
+
         key = self.page.keys[key]
+        # logger.debug(f"cb_keypress_async: {key} {pressed}")
 
         if pressed:
             return self.key_down.send_async(key)
@@ -142,30 +154,17 @@ class Deck:
         )
         self._futures.append(fut)
 
-    async def block_until_quit(self):
-        """
-        await on this method to "run forever" the program
-        """
-        # self._loop.create_task(self.check_futures())
-        check_futures = Periodic(self._loop, 3, self.check_futures)
-        check_futures.start()
-
-        logger.debug("waiting for quit signal...")
-
-        await self._quit_future
-        await check_futures.stop()
-
-    async def check_futures(self):
+    async def cb_check_futures(self):
         """
         check every few seconds that the futures scheduled from the
         streamdeck worker thread haven't thrown an exception
 
-        this isn't "required" to do but any problems in a key callback
+        this isn't "required" but any problems in a key callback
         (basically anything we're trying to accomplish) just disappear
-        into the void and makes debugging virtually impossible. Or log
-        a stacktrace as required.
+        into the void and makes debugging virtually impossible. So log a
+        stacktrace.
         """
-        # logger.debug("check_futures: %s", self._futures)
+        # logger.debug("cb_check_futures: %s", self._futures)
         remove = []
 
         for fut in self._futures:
@@ -178,7 +177,7 @@ class Deck:
                 # not totally confident I know what's going on here...
                 # I think blink-async:send_async() returns the receiver
                 # callback and the results of the callback, which in our case
-                # is the nested coroutine. I think... It seems to work though.
+                # is the nested coroutine. I think... this seems to work though.
                 for receiver_cb, task in results:
                     await task # raises exception if applicable
             except asyncio.CancelledError:

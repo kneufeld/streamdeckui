@@ -102,6 +102,10 @@ class Key:
         """
         store the image but do not show it, use show_image for that
         """
+        # THINK set_image should maybe be expanded to add_state where a state
+        # takes an image and a callback. That way for a given state, the callback
+        # could be different. Default to standard callback of course.
+
         if isinstance(image, pathlib.PurePath):
             image = str(image)
 
