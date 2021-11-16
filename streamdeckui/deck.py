@@ -173,14 +173,14 @@ class Deck:
                 continue
 
             try:
-                results = fut.result() # raises exception if applicable
+                results = fut.result() # list of connected listeners for the signal
 
                 # not totally confident I know what's going on here...
                 # I think blink-async:send_async() returns the receiver
                 # callback and the results of the callback, which in our case
                 # is the nested coroutine. I think... It seems to work though.
                 for receiver_cb, task in results:
-                    await task
+                    await task # raises exception if applicable
             except asyncio.CancelledError:
                 pass
             except Exception as e:
