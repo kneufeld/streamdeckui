@@ -24,8 +24,11 @@ class Deck:
 
         self._futures = []
 
-        self.key_up = blinker.signal('key_up')
+        self.key_up   = blinker.signal('key_up')
         self.key_down = blinker.signal('key_down')
+
+        self.page_in  = blinker.signal('page_in')   # called when putting page in foreground
+        self.page_out = blinker.signal('page_out')  # called when about to be put in background
 
         self._pages = {}
         self._page_history = [] # track page navigation on a stack
@@ -119,8 +122,12 @@ class Deck:
 
     def change_page(self, name):
         logger.debug("change to page: %s", name)
+
+        self.page_out.send_async(self.page)
         self._page_history.append(name)
-        self.page.repaint()
+        self.page_in.send_async(self.page)
+
+        return self.page
 
     def prev_page(self):
         """
@@ -129,10 +136,13 @@ class Deck:
         if len(self._page_history) <= 1:
             return None
 
+        self.page_out.send_async(self.page)
+
         self._page_history.pop()
         logger.debug("goto prev page: %s", self._page_history[-1])
 
-        self.page.repaint()
+        self.page_in.send_async(self.page)
+
         return self.page
 
     async def cb_keypress_async(self, device, key, pressed):

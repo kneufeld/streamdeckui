@@ -6,11 +6,16 @@ from .key import Key
 import logging
 logger = logging.getLogger(__name__)
 
+async def async_repaint(sender):
+    sender.repaint()
+
 class Page:
 
     def __init__(self, deck, keys):
         self._deck = weakref.ref(deck) # deck ui object
         self._keys = []
+
+        self.deck.page_in.connect(async_repaint, sender=self)
 
         if keys is None:
             self._keys = [
