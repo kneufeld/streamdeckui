@@ -28,6 +28,7 @@ class Page:
     def __str__(self):
         return self.__class__.__name__
 
+
     @property
     def deck(self):
         return self._deck()

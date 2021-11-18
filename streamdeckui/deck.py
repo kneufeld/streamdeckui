@@ -15,14 +15,9 @@ class Deck:
     def __init__(self, deck, keys=None, clear=True, loop=None, **kw):
         self._loop = loop or asyncio.get_event_loop()
 
-        self._quit_future = asyncio.Future(loop=loop)
-        # self._quit_future.add_done_callback(self.release)
-
         self._deck = deck
         self._brightness = .4
         self._clear = clear
-
-        self._futures = []
 
         self.key_up   = blinker.signal('key_up')
         self.key_down = blinker.signal('key_down')
@@ -33,13 +28,17 @@ class Deck:
         self._pages = {}
         self._page_history = [] # track page navigation on a stack
 
-        self._deck.reset()
         self._deck.set_key_callback(self.cb_keypress)
 
         self._timers = Timers(self, loop, **kw)
 
+        self._futures = []
         self._check_futures = Periodic(self._loop, 3, self.cb_check_futures)
         self._check_futures.start()
+
+        self._quit_future = asyncio.Future(loop=loop)
+
+        self._deck.reset()
 
     @reify
     def serial_number(self):
@@ -113,6 +112,10 @@ class Deck:
         """
         active page
         """
+        # first run
+        if not self._page_history:
+            return None
+
         curr_page = self._page_history[-1]
         return self._pages[curr_page]
 
@@ -190,6 +193,7 @@ class Deck:
                 # is the nested coroutine. I think... this seems to work though.
                 for receiver_cb, task in results:
                     await task # raises exception if applicable
+
             except asyncio.CancelledError:
                 pass
             except Exception as e:
